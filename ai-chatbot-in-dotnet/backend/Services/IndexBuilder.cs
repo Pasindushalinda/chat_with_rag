@@ -1,4 +1,3 @@
-using Pinecone;
 using Microsoft.Extensions.AI;
 using System.Collections.Immutable;
 
@@ -6,7 +5,7 @@ namespace ChatBot.Services;
 
 public class IndexBuilder(
     StringEmbeddingGenerator embeddingGenerator,
-    IndexClient pineconeIndex,
+    IVectorIndex vectorIndex,
     WikipediaClient wikipediaClient,
     DocumentChunkStore chunkStore,
     DocumentStore documentStore,
@@ -30,7 +29,7 @@ public class IndexBuilder(
             // Makes a call to OpenAI to create an embedding from these strings
             var embeddings = await embeddingGenerator.GenerateAsync(
                 [page.Title],
-                new EmbeddingGenerationOptions { Dimensions = 1024 }
+                new EmbeddingGenerationOptions { Dimensions = 512 }
             );
 
             // var vectors = chunks.Select((chunk, index) => new Vector
@@ -45,21 +44,15 @@ public class IndexBuilder(
             //     }
             // });
 
-            var vectorArray = embeddings[0].Vector.ToArray();
-            var pineconeVector = new Vector
-            {
-                Id = page.Id,
-                Values = vectorArray,
-                Metadata = new Metadata
-                {
-                    { "title", page.Title }
-                }
-            };
+            var record = new VectorRecord(
+                Id: page.Id,
+                Values: embeddings[0].Vector,
+                Title: page.Title,
+                Section: "",
+                ChunkIndex: 0
+            );
 
-            await pineconeIndex.UpsertAsync(new UpsertRequest
-            {
-                Vectors = [pineconeVector]
-            });
+            await vectorIndex.UpsertAsync([record]);
 
             // await pineconeIndex.UpsertAsync(new UpsertRequest
             // {

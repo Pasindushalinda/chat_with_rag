@@ -3,6 +3,8 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
+using Azure.Search.Documents;
+using Azure.Search.Documents.Indexes;
 using Pinecone;
 using ChatBot.Services;
 
@@ -12,8 +14,6 @@ static class Startup
 {
     public static void ConfigureServices(WebApplicationBuilder builder)
     {
-        var pineconeKey = builder.RequireEnv("PINECONE_API_KEY");
-
         builder.Services.AddCors(options =>
         {
             options.AddPolicy("FrontendCors", policy =>
@@ -39,10 +39,32 @@ static class Startup
             return azureClient.GetEmbeddingClient(embeddingDeployment).AsIEmbeddingGenerator();
         });
 
-        builder.Services.AddSingleton<IndexClient>(s => new PineconeClient(pineconeKey).Index(
-            "landmark-chunks"
-            // "https://landmark-chunks-jbshle9.svc.aped-4627-b74a.pinecone.io"
-        ));
+        // Configure vector index (supports both Pinecone and Azure AI Search)
+        const string vectorIndexName = "landmark-chunks";
+        var vectorDbProvider = builder.Configuration.GetValue<string>("VectorDbProvider") ?? "Pinecone";
+
+        if (string.Equals(vectorDbProvider, "AzureSearch", StringComparison.OrdinalIgnoreCase))
+        {
+            var searchEndpoint = builder.RequireEnv("AZURE_SEARCH_ENDPOINT");
+            var searchKey = builder.RequireEnv("AZURE_SEARCH_API_KEY");
+            var credential = new Azure.AzureKeyCredential(searchKey);
+
+            builder.Services.AddSingleton(s => new SearchIndexClient(new Uri(searchEndpoint), credential));
+            builder.Services.AddSingleton(s => new SearchClient(new Uri(searchEndpoint), vectorIndexName, credential));
+            builder.Services.AddSingleton<IVectorIndex>(s => new AzureSearchVectorIndex(
+                s.GetRequiredService<SearchClient>(),
+                s.GetRequiredService<SearchIndexClient>(),
+                vectorIndexName));
+        }
+        else
+        {
+            var pineconeKey = builder.RequireEnv("PINECONE_API_KEY");
+            builder.Services.AddSingleton<IndexClient>(s => new PineconeClient(pineconeKey).Index(
+                vectorIndexName
+                // "https://landmark-chunks-jbshle9.svc.aped-4627-b74a.pinecone.io"
+            ));
+            builder.Services.AddSingleton<IVectorIndex>(s => new PineconeVectorIndex(s.GetRequiredService<IndexClient>()));
+        }
 
         builder.Services.AddSingleton<DocumentChunkStore>(s => new DocumentChunkStore());
 
