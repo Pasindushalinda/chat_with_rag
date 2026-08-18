@@ -9,7 +9,7 @@ namespace ChatBot.Services;
 /// </summary>
 public class VectorSearchServiceWithHyde(
     StringEmbeddingGenerator embeddingGenerator,
-    IVectorIndex vectorIndex,
+    Pinecone.IndexClient pineconeIndex,
     DocumentChunkStore contentStore,
     IChatClient chatClient,
     ChatOptions chatOptions,
@@ -52,16 +52,24 @@ public class VectorSearchServiceWithHyde(
         );
 
         // 3) Use the single embedding as the search vector
-        var vector = embs[0].Vector;
+        var vector = embs[0].Vector.ToArray();
 
-        var matches = await vectorIndex.QueryAsync(vector, k);
+        var response = await pineconeIndex.QueryAsync(new Pinecone.QueryRequest
+        {
+            Vector = vector,
+            TopK = (uint)k,
+            IncludeMetadata = true
+        });
+
+        var matches = (response.Matches ?? []).ToList();
         if (matches.Count == 0)
             return [];
 
-        var ids = matches.Select(m => m.Id);
+        var ids = matches.Select(m => m.Id!).Where(id => !string.IsNullOrEmpty(id));
         var articles = contentStore.GetDocumentChunks(ids);
 
-        var scoreById = matches.ToDictionary(m => m.Id, m => m.Score);
+        var scoreById = matches.Where(m => m.Id is not null)
+                               .ToDictionary(m => m.Id!, m => m.Score);
 
         var ordered = articles.OrderByDescending(a => scoreById.GetValueOrDefault(a.Id, 0f))
                               .Take(k)
