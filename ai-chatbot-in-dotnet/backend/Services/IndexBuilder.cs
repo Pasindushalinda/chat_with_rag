@@ -18,42 +18,58 @@ public class IndexBuilder(
         {
             // Swap out the wikipediaClient here to connect to your own data source!
             var page = await wikipediaClient.GetWikipediaPageForTitle(title, full: true);
-            var sections = wikipediaClient.SplitIntoSections(page.Content);
-
-            var chunks = sections.SelectMany(section =>
-                        splitter.Chunk(page.Title, section.Content, page.PageUrl, section.Title))
-                        .Take(25)
-                        .ToImmutableList();
-
-            var stringsToEmbed = chunks.Select(c => $"{c.Title} > {c.Section}\n\n{c.Content}");
+            // var sections = wikipediaClient.SplitIntoSections(page.Content);
+            //
+            // var chunks = sections.SelectMany(section =>
+            //             splitter.Chunk(page.Title, section.Content, page.PageUrl, section.Title))
+            //             .Take(25)
+            //             .ToImmutableList();
+            //
+            // var stringsToEmbed = chunks.Select(c => $"{c.Title} > {c.Section}\n\n{c.Content}");
 
             // Makes a call to OpenAI to create an embedding from these strings
             var embeddings = await embeddingGenerator.GenerateAsync(
-                stringsToEmbed,
-                new EmbeddingGenerationOptions { Dimensions = 512 }
+                [page.Title],
+                new EmbeddingGenerationOptions { Dimensions = 1024 }
             );
 
-            var vectors = chunks.Select((chunk, index) => new Vector
+            // var vectors = chunks.Select((chunk, index) => new Vector
+            // {
+            //     Id = chunk.Id,
+            //     Values = embeddings[index].Vector.ToArray(),
+            //     Metadata = new Metadata
+            //     {
+            //         { "title", chunk.Title },
+            //         { "section", chunk.Section },
+            //         { "chunk_index", chunk.ChunkIndex }
+            //     }
+            // });
+
+            var vectorArray = embeddings[0].Vector.ToArray();
+            var pineconeVector = new Vector
             {
-                Id = chunk.Id,
-                Values = embeddings[index].Vector.ToArray(),
+                Id = page.Id,
+                Values = vectorArray,
                 Metadata = new Metadata
                 {
-                    { "title", chunk.Title },
-                    { "section", chunk.Section },
-                    { "chunk_index", chunk.ChunkIndex }
+                    { "title", page.Title }
                 }
-            });
+            };
 
             await pineconeIndex.UpsertAsync(new UpsertRequest
             {
-                Vectors = vectors
+                Vectors = [pineconeVector]
             });
 
-            foreach (var chunk in chunks)
-            {
-                chunkStore.SaveDocumentChunk(chunk);
-            }
+            // await pineconeIndex.UpsertAsync(new UpsertRequest
+            // {
+            //     Vectors = vectors
+            // });
+            //
+            // foreach (var chunk in chunks)
+            // {
+            //     chunkStore.SaveDocumentChunk(chunk);
+            // }
 
             // If you have rate limit issues with Pinecone (may happen based on your plan) then uncomment this Task.Delay()
             // see https://docs.pinecone.io/reference/api/database-limits#rate-limits

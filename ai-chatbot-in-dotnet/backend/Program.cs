@@ -9,16 +9,16 @@ var app = builder.Build();
 app.UseCors("FrontendCors");
 
 // Uncomment to do indexing when you run the project (you only need to do this once)...
-// var indexer = app.Services.GetRequiredService<IndexBuilder>();
-// await indexer.BuildIndex(SourceData.LandmarkNames);
-// System.Console.WriteLine("Indexing complete!");
+var indexer = app.Services.GetRequiredService<IndexBuilder>();
+await indexer.BuildIndex(SourceData.LandmarkNames);
+System.Console.WriteLine("Indexing complete!");
 
 // GET /search?query=...
-app.MapGet("/search", async (string query, VectorSearchService search) =>
-{
-    var results = await search.FindTopKChunks(query, 3);
-    return Results.Ok(results);
-});
+// app.MapGet("/search", async (string query, VectorSearchService search) =>
+// {
+//     var results = await search.FindTopKChunks(query, 3);
+//     return Results.Ok(results);
+// });
 
 // // GET /ask?question=...
 // app.MapGet("/ask", async (string question, RagQuestionService rag) =>
