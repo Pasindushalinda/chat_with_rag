@@ -1,41 +1,36 @@
-﻿using System.Globalization;
+﻿using System.ClientModel;
+using System.Globalization;
 using System.Text;
 using MathNet.Numerics.LinearAlgebra;
 using Microsoft.Extensions.AI;
 using OpenAI;
+using OpenAI.Embeddings;
 
 class Program
 {
     static async Task Main(string[] args)
     {
-        var azureEndpoint = RequireEnv("AZURE_OPENAI_ENDPOINT");
-        var azureApiKey = RequireEnv("AZURE_OPENAI_API_KEY");
-        var embeddingDeployment = RequireEnv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT");
+        DotNetEnv.Env.TraversePath().Load();
+        var apiKey = RequireEnv("AZURE_API_KEY");
 
-        var vectors = new List<(string Word, float[] Vector)>();
+        const string embeddingDeployment = "text-embedding-3-small";
+        const string embeddingEndpoint = "https://chatbot-pr1-resource.services.ai.azure.com/openai/v1";
 
-        // Use Azure OpenAI client
-        var azureClient = new Azure.AI.OpenAI.AzureOpenAIClient(
-            new Uri(azureEndpoint),
-            new Azure.AzureKeyCredential(azureApiKey)
-        );
-
-        var embeddingClient = azureClient.GetEmbeddingClient(embeddingDeployment);
-
-        // Generate embeddings using Azure OpenAI directly (without Microsoft.Extensions.AI wrapper)
+        EmbeddingClient embeddingClient = new(
+            model: embeddingDeployment,
+            credential: new ApiKeyCredential(apiKey),
+            options: new OpenAIClientOptions()
+            {
+                Endpoint = new Uri(embeddingEndpoint),
+            });
 
         var words = new[] { "cat", "mouse", "lion", "tiger", "helicopter", "train", "blue", "carrot", "space" };
+        var vectors = new List<(string Word, float[] Vector)>();
 
         foreach (var word in words)
         {
-            var embeddingOptions = new OpenAI.Embeddings.EmbeddingGenerationOptions
-            {
-                Dimensions = 512
-            };
-
-            var embedding = await embeddingClient.GenerateEmbeddingAsync(word, embeddingOptions);
-
-            vectors.Add((word, embedding.Value.ToFloats().ToArray()));
+            OpenAIEmbedding embedding = await embeddingClient.GenerateEmbeddingAsync(word);
+            vectors.Add((word, embedding.ToFloats().ToArray()));
         }
 
         SaveCsv(vectors, "embeddings.csv");
