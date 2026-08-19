@@ -53,6 +53,8 @@ public class IndexBuilder(
             );
 
             await vectorIndex.UpsertAsync([record]);
+            
+            documentStore.SaveDocument(page);
 
             // await pineconeIndex.UpsertAsync(new UpsertRequest
             // {
