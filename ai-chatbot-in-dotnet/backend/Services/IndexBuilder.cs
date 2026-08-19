@@ -1,3 +1,4 @@
+using ChatBot.Models;
 using Microsoft.Extensions.AI;
 using System.Collections.Immutable;
 
@@ -53,8 +54,17 @@ public class IndexBuilder(
             );
 
             await vectorIndex.UpsertAsync([record]);
-            
+
             documentStore.SaveDocument(page);
+
+            chunkStore.SaveDocumentChunk(new DocumentChunk(
+                Id: page.Id,
+                Title: page.Title,
+                Section: "",
+                ChunkIndex: 0,
+                Content: page.Content,
+                SourcePageUrl: page.PageUrl
+            ));
 
             // await pineconeIndex.UpsertAsync(new UpsertRequest
             // {
