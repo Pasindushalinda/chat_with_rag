@@ -9,8 +9,8 @@ var app = builder.Build();
 app.UseCors("FrontendCors");
 
 // Uncomment to do indexing when you run the project (you only need to do this once)...
-// var indexer = app.Services.GetRequiredService<IndexBuilder>();
-// await indexer.BuildIndex(SourceData.LandmarkNames);
+var indexer = app.Services.GetRequiredService<IndexBuilder>();
+await indexer.BuildIndex(SourceData.LandmarkNames);
 // System.Console.WriteLine("Indexing complete!");
 
 // GET /search?query=...
